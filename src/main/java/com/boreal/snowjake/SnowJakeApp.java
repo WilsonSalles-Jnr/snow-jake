@@ -56,6 +56,7 @@ public class SnowJakeApp extends Application {
     private Canvas canvas;
     private GraphicsContext graphics;
     private boolean[][] grid;
+    private int[][] windDirection;
 
     private int columns;
     private int rows;
@@ -76,6 +77,20 @@ public class SnowJakeApp extends Application {
 
     private ComboBox<String> colorSelector;
     private ComboBox<String> areaSelector;
+
+    // Novas configurações
+    private String movementMode = "Aleatório";
+    private String volumeMode = "Aleatório";
+    private String speedMode = "Normal";
+
+    // Controles da interface
+    private ComboBox<String> movementSelector;
+    private ComboBox<String> volumeSelector;
+    private ComboBox<String> speedSelector;
+
+    // Controle da geração de flocos
+    private double nextSpawnInterval = 0.15;
+    private int movementStep;
 
     // Execução
     private boolean configured;
@@ -131,6 +146,32 @@ public class SnowJakeApp extends Application {
         minutesSpinner.setPrefWidth(85);
         secondsSpinner.setPrefWidth(85);
         flakeSizeSpinner.setPrefWidth(100);
+        movementSelector = new ComboBox<>();
+        movementSelector.getItems().addAll(
+                "Reto",
+                "Zigue-zague",
+                "Aleatório"
+        );
+        movementSelector.setValue(movementMode);
+        movementSelector.setMaxWidth(Double.MAX_VALUE);
+
+        volumeSelector = new ComboBox<>();
+        volumeSelector.getItems().addAll(
+                "Poucos",
+                "Muitos",
+                "Aleatório"
+        );
+        volumeSelector.setValue(volumeMode);
+        volumeSelector.setMaxWidth(Double.MAX_VALUE);
+
+        speedSelector = new ComboBox<>();
+        speedSelector.getItems().addAll(
+                "Lenta",
+                "Normal",
+                "Rápida"
+        );
+        speedSelector.setValue(speedMode);
+        speedSelector.setMaxWidth(Double.MAX_VALUE);
 
         colorSelector = new ComboBox<>();
         colorSelector.getItems().addAll(
@@ -155,6 +196,14 @@ public class SnowJakeApp extends Application {
         gridPane.setHgap(12);
         gridPane.setVgap(14);
         gridPane.setPadding(new Insets(18));
+        gridPane.add(new Label("Movimento da neve"), 0, 4);
+        gridPane.add(movementSelector, 1, 4);
+
+        gridPane.add(new Label("Volume da neve"), 0, 5);
+        gridPane.add(volumeSelector, 1, 5);
+
+        gridPane.add(new Label("Velocidade de queda"), 0, 6);
+        gridPane.add(speedSelector, 1, 6);
 
         HBox timeFields = new HBox(
                 8,
@@ -236,8 +285,27 @@ public class SnowJakeApp extends Application {
         flakeSize = flakeSizeSpinner.getValue();
         colorMode = colorSelector.getValue();
         areaMode = areaSelector.getValue();
+        movementMode = movementSelector.getValue();
+        volumeMode = volumeSelector.getValue();
+        speedMode = speedSelector.getValue();
 
         configureOverlay();
+    }
+
+    private double getSimulationInterval() {
+        return switch (speedMode) {
+            case "Lenta" -> 0.16;
+            case "Rápida" -> 0.035;
+            default -> 0.08;
+        };
+    }
+
+    private double getNextSpawnInterval() {
+        return switch (volumeMode) {
+            case "Poucos" -> 0.35;
+            case "Muitos" -> 0.06;
+            default -> 0.06 + random.nextDouble() * 0.29;
+        };
     }
 
     private void confirmSettings() {
@@ -294,6 +362,7 @@ public class SnowJakeApp extends Application {
         );
 
         grid = new boolean[rows][columns];
+        windDirection = new int[rows][columns];
 
         canvas = new Canvas(bounds.getWidth(), overlayHeight);
         canvas.setMouseTransparent(true);
@@ -358,12 +427,17 @@ public class SnowJakeApp extends Application {
                 simulationTimer += delta;
                 spawnTimer += delta;
 
-                if (simulationTimer >= SIMULATION_INTERVAL) {
-                    simulationTimer = 0;
+                double interval = getSimulationInterval();
 
-                    if (spawnTimer >= SPAWN_INTERVAL) {
+                if (simulationTimer >= interval) {
+                    simulationTimer %= interval;
+
+                    if (spawnTimer >= nextSpawnInterval) {
                         spawnTimer = 0;
+
                         spawnPixel();
+
+                        nextSpawnInterval = getNextSpawnInterval();
                     }
 
                     updateGrid();
@@ -371,7 +445,7 @@ public class SnowJakeApp extends Application {
                 }
             }
         };
-
+        nextSpawnInterval = getNextSpawnInterval();
         animationTimer.start();
     }
 
@@ -384,6 +458,7 @@ public class SnowJakeApp extends Application {
 
         if (!grid[0][column]) {
             grid[0][column] = true;
+            windDirection[0][column] = random.nextBoolean() ? 1 : -1;
         }
     }
 
@@ -392,12 +467,40 @@ public class SnowJakeApp extends Application {
             return;
         }
 
-        // Os pixels descem uma célula por atualização.
         for (int y = rows - 2; y >= 0; y--) {
             for (int x = 0; x < columns; x++) {
-                if (grid[y][x] && !grid[y + 1][x]) {
+                if (!grid[y][x]) {
+                    continue;
+                }
+
+                int direction = 0;
+
+                switch (movementMode) {
+                    case "Reto" -> direction = 0;
+
+                    case "Zigue-zague" -> {
+                        direction = (movementStep++ % 2 == 0) ? 1 : -1;
+                    }
+
+                    case "Aleatório" -> {
+                        if (random.nextBoolean()) {
+                            direction = random.nextBoolean() ? 1 : -1;
+                        }
+                    }
+
+                    default -> direction = 0;
+                }
+
+                int nextX = Math.max(
+                        0,
+                        Math.min(columns - 1, x + direction)
+                );
+
+                int nextY = y + 1;
+
+                if (!grid[nextY][nextX]) {
                     grid[y][x] = false;
-                    grid[y + 1][x] = true;
+                    grid[nextY][nextX] = true;
                 }
             }
         }
@@ -518,6 +621,10 @@ public class SnowJakeApp extends Application {
             Arrays.fill(row, false);
         }
 
+        for (int[] row : windDirection) {
+            Arrays.fill(row, 0);
+        }
+
         render();
     }
 
@@ -527,6 +634,8 @@ public class SnowJakeApp extends Application {
         simulationTimer = 0;
         spawnTimer = 0;
         lastFrame = 0;
+        movementStep = 0;
+        nextSpawnInterval = getNextSpawnInterval();
 
         clearGrid();
 
