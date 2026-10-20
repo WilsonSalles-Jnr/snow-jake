@@ -246,17 +246,38 @@ public class SnowJakeApp extends Application {
         description.setWrapText(true);
         description.setPadding(new Insets(0, 18, 12, 18));
 
+        Label heading = new Label("Personalize o SnowJake");
+        heading.setStyle(
+                "-fx-font-size: 22px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-text-fill: #F1F5F9;"
+        );
+
+        Label subtitle = new Label(
+                "Configure como a neve aparece na sua tela."
+        );
+        subtitle.setStyle("-fx-text-fill: #98A5B5;");
+
+        VBox header = new VBox(5, heading, subtitle);
         VBox content = new VBox(
-                8,
-                new Label("Personalize o SnowJake"),
+                14,
+                header,
                 gridPane,
                 description,
                 buttons
         );
-        content.setPadding(new Insets(12));
-        content.setPrefWidth(560);
+        content.setPadding(new Insets(23));
+        content.setPrefWidth(600);
 
-        settingsStage.setScene(new Scene(content));
+        Scene scene = new Scene(content);
+
+        scene.getStylesheets().add(
+                getClass()
+                        .getResource("/com/boreal/snowjake/snowjake.css")
+                        .toExternalForm()
+        );
+
+        settingsStage.setScene(scene);
 
         settingsStage.setOnCloseRequest(event -> {
             event.consume();
